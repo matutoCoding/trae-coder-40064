@@ -24,6 +24,14 @@ export default function NdtManagement() {
   const { ndtReports } = useAppStore();
   const [selectedReport, setSelectedReport] = useState<NdtReport | null>(ndtReports[0] || null);
   const [hoveredDefect, setHoveredDefect] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
+
+  const filteredReports = ndtReports.filter(report => {
+    if (!searchKeyword.trim()) return true;
+    const keyword = searchKeyword.toLowerCase();
+    return report.productName.toLowerCase().includes(keyword) ||
+           report.taskNo.toLowerCase().includes(keyword);
+  });
 
   const getResultLabel = (result: string) => {
     const labels: Record<string, string> = {
@@ -103,36 +111,47 @@ export default function NdtManagement() {
                 <input
                   type="text"
                   placeholder="搜索产品、任务号..."
+                  value={searchKeyword}
+                  onChange={(e) => {
+                    setSearchKeyword(e.target.value);
+                  }}
                   className="w-full bg-carbon-900 border border-carbon-600 rounded-lg pl-9 pr-4 py-2 text-sm text-carbon-200 placeholder-carbon-500 focus:outline-none focus:border-accent/50"
                 />
               </div>
             </div>
             <div className="divide-y divide-carbon-700/50 max-h-[420px] overflow-y-auto">
-              {ndtReports.map((report) => (
-                <div
-                  key={report.id}
-                  onClick={() => setSelectedReport(report)}
-                  className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
-                    selectedReport?.id === report.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="min-w-0 flex-1 mr-3">
-                      <p className="font-medium text-carbon-100 text-sm truncate">{report.productName}</p>
-                      <p className="text-xs text-carbon-500 font-mono mt-0.5">{report.taskNo}</p>
+              {filteredReports.length > 0 ? (
+                filteredReports.map((report) => (
+                  <div
+                    key={report.id}
+                    onClick={() => setSelectedReport(report)}
+                    className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
+                      selectedReport?.id === report.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="min-w-0 flex-1 mr-3">
+                        <p className="font-medium text-carbon-100 text-sm truncate">{report.productName}</p>
+                        <p className="text-xs text-carbon-500 font-mono mt-0.5">{report.taskNo}</p>
+                      </div>
+                      <StatusBadge status={getResultType(report.result)} label={getResultLabel(report.result)} showIcon={false} />
                     </div>
-                    <StatusBadge status={getResultType(report.result)} label={getResultLabel(report.result)} showIcon={false} />
+                    <div className="flex items-center gap-4 text-xs text-carbon-400">
+                      <span className="flex items-center gap-1">
+                        <ScanSearch size={12} /> {report.testMethod}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <AlertTriangle size={12} /> {report.defectRate}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-carbon-400">
-                    <span className="flex items-center gap-1">
-                      <ScanSearch size={12} /> {report.testMethod}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <AlertTriangle size={12} /> {report.defectRate}%
-                    </span>
-                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center">
+                  <Search size={32} className="text-carbon-600 mx-auto mb-2" />
+                  <p className="text-sm text-carbon-500">未找到匹配的检测报告</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
