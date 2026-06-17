@@ -54,8 +54,8 @@ function calculateUtilization(parts: NestingPart[]): number {
 }
 
 export default function CuttingManagement() {
-  const { cuttingTasks, prepregs, addCuttingTask, updateCuttingTask } = useAppStore();
-  const [selectedTask, setSelectedTask] = useState<CuttingTask | null>(null);
+  const { cuttingTasks, prepregs, addCuttingTask, updateCuttingTask, addActivity, getSelectedId, setSelectedId } = useAppStore();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState({
     productName: '',
@@ -68,10 +68,31 @@ export default function CuttingManagement() {
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (cuttingTasks.length > 0 && !selectedTask) {
-      setSelectedTask(cuttingTasks[0]);
+    const savedId = getSelectedId('cutting');
+    if (savedId && cuttingTasks.find((t) => t.id === savedId)) {
+      setSelectedTaskId(savedId);
+    } else if (cuttingTasks.length > 0) {
+      setSelectedTaskId(cuttingTasks[0].id);
     }
+  }, [cuttingTasks.length]);
+
+  useEffect(() => {
+    if (selectedTaskId) setSelectedId('cutting', selectedTaskId);
+  }, [selectedTaskId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.module === 'cutting' && ce.detail?.recordId) {
+        const found = cuttingTasks.find((t) => t.id === ce.detail.recordId);
+        if (found) setSelectedTaskId(found.id);
+      }
+    };
+    window.addEventListener('app:select-record', handler);
+    return () => window.removeEventListener('app:select-record', handler);
   }, [cuttingTasks]);
+
+  const selectedTask = cuttingTasks.find((t) => t.id === selectedTaskId) || null;
 
   useEffect(() => {
     const progressStates: Record<string, number> = {};
@@ -168,7 +189,8 @@ export default function CuttingManagement() {
     };
 
     addCuttingTask(newTask);
-    setSelectedTask(newTask);
+    setSelectedTaskId(newTask.id);
+    addActivity('cutting', `新建裁剪任务：${newTask.productName} (${newTask.taskNo})`, newTask.operator);
     setShowNewTaskModal(false);
     setNewTaskForm({
       productName: '',
@@ -247,7 +269,7 @@ export default function CuttingManagement() {
               {cuttingTasks.map((task) => (
                 <div
                   key={task.id}
-                  onClick={() => setSelectedTask(task)}
+                  onClick={() => setSelectedTaskId(task.id)}
                   className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
                     selectedTask?.id === task.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
                   }`}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { StatusBadge } from '../components/StatusBadge';
 import {
@@ -46,9 +46,36 @@ ChartJS.register(
 );
 
 export default function MechanicalManagement() {
-  const { mechanicalTests } = useAppStore();
-  const [selectedTest, setSelectedTest] = useState<MechanicalTest | null>(mechanicalTests[0] || null);
+  const { mechanicalTests, getSelectedId, setSelectedId } = useAppStore();
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
+
+  useEffect(() => {
+    const savedId = getSelectedId('mechanical');
+    if (savedId && mechanicalTests.find((t) => t.id === savedId)) {
+      setSelectedTestId(savedId);
+    } else if (mechanicalTests.length > 0) {
+      setSelectedTestId(mechanicalTests[0].id);
+    }
+  }, [mechanicalTests.length]);
+
+  useEffect(() => {
+    if (selectedTestId) setSelectedId('mechanical', selectedTestId);
+  }, [selectedTestId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.module === 'mechanical' && ce.detail?.recordId) {
+        const found = mechanicalTests.find((t) => t.id === ce.detail.recordId);
+        if (found) setSelectedTestId(found.id);
+      }
+    };
+    window.addEventListener('app:select-record', handler);
+    return () => window.removeEventListener('app:select-record', handler);
+  }, [mechanicalTests]);
+
+  const selectedTest = mechanicalTests.find((t) => t.id === selectedTestId) || null;
 
   const filteredTests = mechanicalTests.filter(test => {
     if (!searchKeyword.trim()) return true;
@@ -293,7 +320,7 @@ export default function MechanicalManagement() {
                 filteredTests.map((test) => (
                   <div
                     key={test.id}
-                    onClick={() => setSelectedTest(test)}
+                    onClick={() => setSelectedTestId(test.id)}
                     className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
                       selectedTest?.id === test.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
                     }`}

@@ -79,15 +79,42 @@ const generateCurves = (targetTemp: number, targetPressure: number, holdTime: nu
 };
 
 export default function CuringManagement() {
-  const { curingProcesses, updateCuringProcess } = useAppStore();
-  const [selectedProcess, setSelectedProcess] = useState<CuringProcess | null>(curingProcesses[0] || null);
+  const { curingProcesses, updateCuringProcess, addActivity, getSelectedId, setSelectedId } = useAppStore();
+  const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [currentTimes, setCurrentTimes] = useState<Record<string, number>>({});
   const [isRunningMap, setIsRunningMap] = useState<Record<string, boolean>>({});
   const [terminatedMap, setTerminatedMap] = useState<Record<string, boolean>>({});
   const intervalRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    const savedId = getSelectedId('curing');
+    if (savedId && curingProcesses.find((p) => p.id === savedId)) {
+      setSelectedProcessId(savedId);
+    } else if (curingProcesses.length > 0) {
+      setSelectedProcessId(curingProcesses[0].id);
+    }
+  }, [curingProcesses.length]);
+
+  useEffect(() => {
+    if (selectedProcessId) setSelectedId('curing', selectedProcessId);
+  }, [selectedProcessId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.module === 'curing' && ce.detail?.recordId) {
+        const found = curingProcesses.find((p) => p.id === ce.detail.recordId);
+        if (found) setSelectedProcessId(found.id);
+      }
+    };
+    window.addEventListener('app:select-record', handler);
+    return () => window.removeEventListener('app:select-record', handler);
+  }, [curingProcesses]);
+
+  const selectedProcess = curingProcesses.find((p) => p.id === selectedProcessId) || null;
+
   const getCurrentProcess = () => {
-    return curingProcesses.find(p => p.id === selectedProcess?.id) || selectedProcess;
+    return curingProcesses.find(p => p.id === selectedProcessId) || selectedProcess;
   };
 
   const currentProcess = getCurrentProcess();
@@ -185,6 +212,7 @@ export default function CuringManagement() {
     setCurrentTimes(prev => ({ ...prev, [id]: prev[id] || 0 }));
     setIsRunningMap(prev => ({ ...prev, [id]: true }));
     updateCuringProcess(id, { status: 'heating', startTime: new Date().toLocaleString('zh-CN') });
+    if (process) addActivity('curing', `开始固化：${process.productName} (${process.autoclaveNo})`, process.operator);
   };
 
   const handlePauseCuring = (id: string) => {
@@ -200,6 +228,8 @@ export default function CuringManagement() {
       setIsRunningMap(prev => ({ ...prev, [id]: false }));
       setTerminatedMap(prev => ({ ...prev, [id]: true }));
       updateCuringProcess(id, { status: 'completed' });
+      const proc = curingProcesses.find((p) => p.id === id);
+      if (proc) addActivity('curing', `终止固化：${proc.productName} (${proc.autoclaveNo})`, proc.operator);
     }
   };
 
@@ -400,7 +430,7 @@ export default function CuringManagement() {
                 return (
                   <div
                     key={process.id}
-                    onClick={() => setSelectedProcess(process)}
+                    onClick={() => setSelectedProcessId(process.id)}
                     className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
                       selectedProcess?.id === process.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
                     }`}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
@@ -9,6 +9,18 @@ import CuringManagement from './pages/CuringManagement';
 import TrimmingManagement from './pages/TrimmingManagement';
 import NdtManagement from './pages/NdtManagement';
 import MechanicalManagement from './pages/MechanicalManagement';
+
+export interface NavigationTarget {
+  module: string;
+  recordId?: string;
+  timestamp: number;
+}
+
+declare global {
+  interface WindowEventMap {
+    'app:navigate': CustomEvent<NavigationTarget>;
+  }
+}
 
 const moduleConfig: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: '工作台', subtitle: '生产数据概览与任务中心' },
@@ -23,6 +35,22 @@ const moduleConfig: Record<string, { title: string; subtitle: string }> = {
 
 function App() {
   const [activeModule, setActiveModule] = useState('dashboard');
+
+  useEffect(() => {
+    const onNavigate = (e: CustomEvent<NavigationTarget>) => {
+      setActiveModule(e.detail.module);
+      if (e.detail.recordId && e.detail.module !== 'dashboard') {
+        setTimeout(() => {
+          const ev = new CustomEvent('app:select-record', {
+            detail: { module: e.detail.module, recordId: e.detail.recordId },
+          });
+          window.dispatchEvent(ev);
+        }, 100);
+      }
+    };
+    window.addEventListener('app:navigate', onNavigate as EventListener);
+    return () => window.removeEventListener('app:navigate', onNavigate as EventListener);
+  }, []);
 
   const renderModule = () => {
     switch (activeModule) {

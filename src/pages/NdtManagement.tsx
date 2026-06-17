@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { StatusBadge } from '../components/StatusBadge';
 import {
@@ -21,10 +21,37 @@ import {
 import type { NdtReport } from '../types';
 
 export default function NdtManagement() {
-  const { ndtReports } = useAppStore();
-  const [selectedReport, setSelectedReport] = useState<NdtReport | null>(ndtReports[0] || null);
+  const { ndtReports, getSelectedId, setSelectedId } = useAppStore();
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [hoveredDefect, setHoveredDefect] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
+
+  useEffect(() => {
+    const savedId = getSelectedId('ndt');
+    if (savedId && ndtReports.find((r) => r.id === savedId)) {
+      setSelectedReportId(savedId);
+    } else if (ndtReports.length > 0) {
+      setSelectedReportId(ndtReports[0].id);
+    }
+  }, [ndtReports.length]);
+
+  useEffect(() => {
+    if (selectedReportId) setSelectedId('ndt', selectedReportId);
+  }, [selectedReportId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.module === 'ndt' && ce.detail?.recordId) {
+        const found = ndtReports.find((r) => r.id === ce.detail.recordId);
+        if (found) setSelectedReportId(found.id);
+      }
+    };
+    window.addEventListener('app:select-record', handler);
+    return () => window.removeEventListener('app:select-record', handler);
+  }, [ndtReports]);
+
+  const selectedReport = ndtReports.find((r) => r.id === selectedReportId) || null;
 
   const filteredReports = ndtReports.filter(report => {
     if (!searchKeyword.trim()) return true;
@@ -124,7 +151,7 @@ export default function NdtManagement() {
                 filteredReports.map((report) => (
                   <div
                     key={report.id}
-                    onClick={() => setSelectedReport(report)}
+                    onClick={() => setSelectedReportId(report.id)}
                     className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
                       selectedReport?.id === report.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
                     }`}

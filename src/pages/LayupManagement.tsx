@@ -31,8 +31,8 @@ import { Radar } from 'react-chartjs-2';
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
 export default function LayupManagement() {
-  const { layupRecords, prepregs, updateLayupRecord } = useAppStore();
-  const [selectedRecord, setSelectedRecord] = useState<LayupRecord | null>(null);
+  const { layupRecords, prepregs, updateLayupRecord, addActivity, getSelectedId, setSelectedId } = useAppStore();
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [showAddLayerModal, setShowAddLayerModal] = useState(false);
   const [newLayerForm, setNewLayerForm] = useState({
     angle: 0,
@@ -41,13 +41,34 @@ export default function LayupManagement() {
   });
 
   useEffect(() => {
-    if (layupRecords.length > 0 && !selectedRecord) {
-      setSelectedRecord(layupRecords[0]);
+    const savedId = getSelectedId('layup');
+    if (savedId && layupRecords.find((r) => r.id === savedId)) {
+      setSelectedRecordId(savedId);
+    } else if (layupRecords.length > 0) {
+      setSelectedRecordId(layupRecords[0].id);
     }
+  }, [layupRecords.length]);
+
+  useEffect(() => {
+    if (selectedRecordId) setSelectedId('layup', selectedRecordId);
+  }, [selectedRecordId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.module === 'layup' && ce.detail?.recordId) {
+        const found = layupRecords.find((r) => r.id === ce.detail.recordId);
+        if (found) setSelectedRecordId(found.id);
+      }
+    };
+    window.addEventListener('app:select-record', handler);
+    return () => window.removeEventListener('app:select-record', handler);
   }, [layupRecords]);
 
+  const selectedRecord = layupRecords.find((r) => r.id === selectedRecordId) || null;
+
   const getCurrentRecord = () => {
-    return layupRecords.find(r => r.id === selectedRecord?.id) || selectedRecord;
+    return layupRecords.find(r => r.id === selectedRecordId) || selectedRecord;
   };
 
   const currentRecord = getCurrentRecord();
@@ -78,6 +99,7 @@ export default function LayupManagement() {
       status: isCompleted ? 'completed' : 'in_progress',
     });
 
+    addActivity('layup', `${currentRecord.productName}：第${newLayer.index}层铺层完成`, newLayer.operator);
     setShowAddLayerModal(false);
     setNewLayerForm({
       angle: 0,
@@ -110,10 +132,12 @@ export default function LayupManagement() {
   };
 
   const handleStartLayup = (recordId: string) => {
+    const rec = layupRecords.find((r) => r.id === recordId);
     updateLayupRecord(recordId, {
       status: 'in_progress',
       startTime: new Date().toLocaleString('zh-CN'),
     });
+    if (rec) addActivity('layup', `开始铺层：${rec.productName} (${rec.taskNo})`, rec.operator);
   };
 
   const openAddLayerModal = () => {
@@ -237,7 +261,7 @@ export default function LayupManagement() {
               {layupRecords.map((record) => (
                 <div
                   key={record.id}
-                  onClick={() => setSelectedRecord(record)}
+                  onClick={() => setSelectedRecordId(record.id)}
                   className={`p-4 cursor-pointer transition-colors hover:bg-carbon-700/30 ${
                     selectedRecord?.id === record.id ? 'bg-carbon-700/50 border-l-2 border-accent' : ''
                   }`}
