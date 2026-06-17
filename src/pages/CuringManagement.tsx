@@ -78,6 +78,12 @@ const generateCurves = (targetTemp: number, targetPressure: number, holdTime: nu
   return { tempCurve, pressureCurve, totalTime };
 };
 
+const formatTime = (minutes: number) => {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.floor(minutes % 60);
+  return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
 export default function CuringManagement() {
   const { curingProcesses, updateCuringProcess, addActivity, getSelectedId, setSelectedId } = useAppStore();
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
@@ -159,6 +165,7 @@ export default function CuringManagement() {
                 if (newTime >= totalTime) {
                   setIsRunningMap(r => ({ ...r, [id]: false }));
                   updateCuringProcess(id, { status: 'completed' });
+                  addActivity('curing', `固化完成：${process.productName} (${process.autoclaveNo})`, process.operator);
                 } else {
                   const heatingTime = Math.ceil((process.targetTemp - 25) / process.heatingRate);
                   const holdEnd = heatingTime + 5 + process.holdTime;
@@ -217,10 +224,14 @@ export default function CuringManagement() {
 
   const handlePauseCuring = (id: string) => {
     setIsRunningMap(prev => ({ ...prev, [id]: false }));
+    const proc = curingProcesses.find((p) => p.id === id);
+    if (proc) addActivity('curing', `暂停固化：${proc.productName} (${proc.autoclaveNo})，已运行${formatTime(currentTimes[id] || 0)}`, proc.operator);
   };
 
   const handleResumeCuring = (id: string) => {
     setIsRunningMap(prev => ({ ...prev, [id]: true }));
+    const proc = curingProcesses.find((p) => p.id === id);
+    if (proc) addActivity('curing', `继续固化：${proc.productName} (${proc.autoclaveNo})，恢复运行`, proc.operator);
   };
 
   const handleTerminateCuring = (id: string) => {
@@ -269,12 +280,6 @@ export default function CuringManagement() {
     const time = currentTimes[currentProcess.id] || 0;
     const point = currentProcess.pressureCurve.find(p => p.time >= time);
     return point ? point.value.toFixed(3) : '0.000';
-  };
-
-  const formatTime = (minutes: number) => {
-    const hrs = Math.floor(minutes / 60);
-    const mins = Math.floor(minutes % 60);
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
   const getCurrentTime = () => {

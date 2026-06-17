@@ -121,6 +121,7 @@ export default function CuttingManagement() {
               next[task.id] = Math.min(100, current + 0.5);
               if (next[task.id] >= 100) {
                 updateCuttingTask(task.id, { status: 'completed', endTime: new Date().toLocaleString('zh-CN') });
+                addActivity('cutting', `裁剪完成：${task.productName}，利用率${task.utilizationRate}%`, task.operator);
               }
             }
           });
@@ -137,15 +138,19 @@ export default function CuttingManagement() {
   }, [cuttingTasks, updateCuttingTask]);
 
   const handleStartCutting = (taskId: string) => {
+    const task = cuttingTasks.find(t => t.id === taskId);
     updateCuttingTask(taskId, { 
       status: 'cutting', 
       startTime: new Date().toLocaleString('zh-CN') 
     });
     setCuttingProgress(prev => ({ ...prev, [taskId]: 0 }));
+    if (task) addActivity('cutting', `开始裁剪：${task.productName} (${task.taskNo})`, task.operator);
   };
 
   const handlePauseCutting = (taskId: string) => {
+    const task = cuttingTasks.find(t => t.id === taskId);
     updateCuttingTask(taskId, { status: 'pending' });
+    if (task) addActivity('cutting', `暂停裁剪：${task.productName}，进度${Math.round(cuttingProgress[taskId] || 0)}%`, task.operator);
   };
 
   const handleRenessing = (taskId: string) => {
@@ -159,6 +164,7 @@ export default function CuttingManagement() {
       nestingPlan: newNestingPlan,
       utilizationRate: newUtilization,
     });
+    addActivity('cutting', `重新排样：${task.productName}，新利用率${newUtilization}%`, task.operator);
   };
 
   const handleCreateTask = () => {

@@ -9,6 +9,8 @@ import CuringManagement from './pages/CuringManagement';
 import TrimmingManagement from './pages/TrimmingManagement';
 import NdtManagement from './pages/NdtManagement';
 import MechanicalManagement from './pages/MechanicalManagement';
+import ProductTraceability from './pages/ProductTraceability';
+import { useAppStore } from './store/useAppStore';
 
 export interface NavigationTarget {
   module: string;
@@ -31,10 +33,16 @@ const moduleConfig: Record<string, { title: string; subtitle: string }> = {
   trimming: { title: '脱模修整', subtitle: '制品脱模、边缘修整与钻孔加工' },
   ndt: { title: '无损检测', subtitle: '超声分层检测与缺陷分析' },
   mechanical: { title: '力学试验', subtitle: '纤维体积含量、剪切强度与模量测试' },
+  traceability: { title: '产品流转档案', subtitle: '全工序生产记录与质量追溯查询' },
 };
 
 function App() {
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const { getActiveModule, setActiveModule: persistActiveModule } = useAppStore();
+  const [activeModule, setActiveModule] = useState<string>(getActiveModule());
+
+  useEffect(() => {
+    persistActiveModule(activeModule);
+  }, [activeModule, persistActiveModule]);
 
   useEffect(() => {
     const onNavigate = (e: CustomEvent<NavigationTarget>) => {
@@ -70,6 +78,8 @@ function App() {
         return <NdtManagement />;
       case 'mechanical':
         return <MechanicalManagement />;
+      case 'traceability':
+        return <ProductTraceability />;
       default:
         return <Dashboard />;
     }

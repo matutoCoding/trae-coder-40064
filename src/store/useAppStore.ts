@@ -32,6 +32,8 @@ interface StoredState {
   ndtReports?: NdtReport[];
   mechanicalTests?: MechanicalTest[];
   selectedIds?: Record<string, string | null>;
+  activities?: ActivityItem[];
+  activeModule?: string;
 }
 
 const loadFromStorage = (): StoredState => {
@@ -80,6 +82,9 @@ interface AppState {
   getSelectedId: (module: string) => string | null;
   setSelectedId: (module: string, id: string | null) => void;
 
+  getActiveModule: () => string;
+  setActiveModule: (module: string) => void;
+
   addPrepreg: (prepreg: Prepreg) => void;
   updatePrepreg: (id: string, updates: Partial<Prepreg>) => void;
   deletePrepreg: (id: string) => void;
@@ -114,9 +119,9 @@ const initialSelected: SelectedModuleState = {
   ...(stored.selectedIds || {}),
 };
 
-const initialActivities: ActivityItem[] = [
-  { id: genId(), type: 'system', description: '系统启动完成', time: new Date().toLocaleString('zh-CN'), user: '系统' },
-];
+const initialActivities: ActivityItem[] = stored.activities && stored.activities.length > 0
+  ? stored.activities
+  : [{ id: genId(), type: 'system', description: '系统启动完成', time: new Date().toLocaleString('zh-CN'), user: '系统' }];
 
 export const useAppStore = create<AppState>((set, get) => ({
   prepregs: stored.prepregs || mockPrepregs,
@@ -139,6 +144,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  getActiveModule: () => stored.activeModule || 'dashboard',
+  setActiveModule: (module) => {
+    saveToStorage({ activeModule: module });
+  },
+
   addActivity: (type, description, user = '系统') => {
     const activity: ActivityItem = {
       id: genId(),
@@ -147,9 +157,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       time: new Date().toLocaleString('zh-CN'),
       user,
     };
-    set((state) => ({
-      activities: [activity, ...state.activities].slice(0, 50),
-    }));
+    set((state) => {
+      const activities = [activity, ...state.activities].slice(0, 50);
+      saveToStorage({ activities });
+      return { activities };
+    });
   },
 
   getDashboardStats: () => {

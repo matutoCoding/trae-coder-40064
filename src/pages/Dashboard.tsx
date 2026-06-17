@@ -39,8 +39,8 @@ const extractRecordId = (taskId: string) => {
 };
 
 export default function Dashboard() {
-  const { getDashboardStats, prepregs, cuttingTasks, layupRecords, curingProcesses, trimmingRecords } = useAppStore();
-  const dashboardStats = useMemo(() => getDashboardStats(), [prepregs, cuttingTasks, layupRecords, curingProcesses, trimmingRecords]);
+  const { getDashboardStats, prepregs, cuttingTasks, layupRecords, curingProcesses, trimmingRecords, ndtReports, mechanicalTests, activities } = useAppStore();
+  const dashboardStats = useMemo(() => getDashboardStats(), [prepregs, cuttingTasks, layupRecords, curingProcesses, trimmingRecords, ndtReports, mechanicalTests, activities]);
   const { pendingTasks, recentActivities } = dashboardStats;
 
   const expiringList = prepregs.filter((p) => {

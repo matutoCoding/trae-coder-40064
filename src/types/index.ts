@@ -112,8 +112,11 @@ export interface TrimmingRecord {
   trimOperator: string;
   drillingSpec: string;
   holeCount: number;
+  drillOperator?: string;
+  drillTime?: string;
   edgeQuality: 'excellent' | 'good' | 'fair' | 'poor';
   status: 'pending' | 'demolded' | 'trimming' | 'drilling' | 'completed';
+  completeTime?: string;
   remark: string;
 }
 

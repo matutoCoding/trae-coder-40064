@@ -10,6 +10,7 @@ import {
   Gauge,
   Settings,
   ChevronRight,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { id: 'trimming', label: '脱模修整', icon: <Wrench size={20} />, color: 'text-purple-400' },
   { id: 'ndt', label: '无损检测', icon: <ScanSearch size={20} />, color: 'text-cyan-400' },
   { id: 'mechanical', label: '力学试验', icon: <Gauge size={20} />, color: 'text-pink-400' },
+  { id: 'traceability', label: '产品流转档案', icon: <GitBranch size={20} />, color: 'text-emerald-400' },
 ];
 
 interface SidebarProps {

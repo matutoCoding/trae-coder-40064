@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { TrimmingRecord } from '../types';
 
-type FormType = 'demold' | 'trimming' | 'drilling' | null;
+type FormType = 'demold' | 'trimming' | 'drilling' | 'complete' | null;
 
 interface StepFormState {
   operator: string;
@@ -29,6 +29,7 @@ interface StepFormState {
   remark: string;
   edgeQuality: 'excellent' | 'good' | 'fair' | 'poor';
   trimResult: string;
+  holeCount: string;
 }
 
 const emptyStepForm: StepFormState = {
@@ -37,6 +38,7 @@ const emptyStepForm: StepFormState = {
   remark: '',
   edgeQuality: 'good',
   trimResult: '合格',
+  holeCount: '6',
 };
 
 export default function TrimmingManagement() {
@@ -180,7 +182,7 @@ export default function TrimmingManagement() {
 
   const handleSubmitStep = () => {
     if (!selectedRecord) return;
-    if (!stepForm.operator) {
+    if (!stepForm.operator && formType !== 'complete') {
       alert('请填写操作人');
       return;
     }
@@ -194,7 +196,7 @@ export default function TrimmingManagement() {
         demoldTemp: Number(stepForm.temp),
         remark: stepForm.remark,
       });
-      addActivity('trimming', `制品脱模完成：${selectedRecord.productName}`, stepForm.operator);
+      addActivity('trimming', `制品脱模完成：${selectedRecord.productName}（${stepForm.temp}°C）`, stepForm.operator);
     } else if (formType === 'trimming') {
       updateTrimmingRecord(selectedRecord.id, {
         status: 'trimming',
@@ -202,18 +204,23 @@ export default function TrimmingManagement() {
         trimResult: stepForm.trimResult,
         edgeQuality: stepForm.edgeQuality,
       });
-      addActivity('trimming', `边缘修整完成：${selectedRecord.productName} - ${getEdgeQualityLabel(stepForm.edgeQuality)}`, stepForm.operator);
+      addActivity('trimming', `边缘修整完成：${selectedRecord.productName} - ${getEdgeQualityLabel(stepForm.edgeQuality)} / ${stepForm.trimResult}`, stepForm.operator);
     } else if (formType === 'drilling') {
+      const count = Number(stepForm.holeCount) || selectedRecord.holeCount;
       updateTrimmingRecord(selectedRecord.id, {
         status: 'drilling',
+        drillOperator: stepForm.operator,
+        drillTime: now,
+        holeCount: count,
       });
-      setTimeout(() => {
-        updateTrimmingRecord(selectedRecord.id, {
-          status: 'completed',
-          remark: (selectedRecord.remark || '') + (stepForm.remark ? ` | ${stepForm.remark}` : ''),
-        });
-      }, 50);
-      addActivity('trimming', `后处理完成：${selectedRecord.productName} 可进入下一工序`, stepForm.operator);
+      addActivity('trimming', `开始钻孔加工：${selectedRecord.productName}（共${count}孔）`, stepForm.operator);
+    } else if (formType === 'complete') {
+      updateTrimmingRecord(selectedRecord.id, {
+        status: 'completed',
+        completeTime: now,
+        remark: (selectedRecord.remark || '') + (stepForm.remark ? ` | ${stepForm.remark}` : ''),
+      });
+      addActivity('trimming', `后处理完成：${selectedRecord.productName} 可进入下一工序`, stepForm.operator || '系统');
     }
     closeModal();
   };
@@ -222,7 +229,17 @@ export default function TrimmingManagement() {
     if (step === 'demold') return status === 'pending';
     if (step === 'trimming') return status === 'demolded';
     if (step === 'drilling') return status === 'trimming';
+    if (step === 'complete') return status === 'drilling';
     return false;
+  };
+
+  const handleNextStep = () => {
+    if (!selectedRecord) return;
+    const s = selectedRecord.status;
+    if (s === 'pending') openStepModal('demold');
+    else if (s === 'demolded') openStepModal('trimming');
+    else if (s === 'trimming') openStepModal('drilling');
+    else if (s === 'drilling') openStepModal('complete');
   };
 
   return (
@@ -321,27 +338,26 @@ export default function TrimmingManagement() {
                     />
                     {canDoStep('demold', selectedRecord.status) && (
                       <button onClick={() => openStepModal('demold')} className="btn-primary text-sm flex items-center gap-1.5">
-                        <Package size={16} /> 开始脱模
+                        <Package size={16} /> 登记脱模
                       </button>
                     )}
                     {canDoStep('trimming', selectedRecord.status) && (
                       <button onClick={() => openStepModal('trimming')} className="btn-primary text-sm flex items-center gap-1.5">
-                        <Wrench size={16} /> 开始修整
+                        <Wrench size={16} /> 登记修整
                       </button>
                     )}
                     {canDoStep('drilling', selectedRecord.status) && (
                       <button onClick={() => openStepModal('drilling')} className="btn-primary text-sm flex items-center gap-1.5">
-                        <CircleDot size={16} /> 开始钻孔
+                        <CircleDot size={16} /> 登记钻孔
                       </button>
                     )}
-                    {selectedRecord.status !== 'completed' && selectedRecord.status !== 'pending' && (
-                      <button
-                        onClick={() => {
-                          const next = getNextStep(selectedRecord.status);
-                          if (next === 'drilling') openStepModal('drilling');
-                        }}
-                        className="btn-secondary text-sm flex items-center gap-1.5"
-                      >
+                    {canDoStep('complete', selectedRecord.status) && (
+                      <button onClick={() => openStepModal('complete')} className="btn-primary text-sm flex items-center gap-1.5">
+                        <CheckCircle2 size={16} /> 完成后处理
+                      </button>
+                    )}
+                    {selectedRecord.status !== 'completed' && (
+                      <button onClick={handleNextStep} className="btn-secondary text-sm flex items-center gap-1.5">
                         下一步 <ArrowRight size={16} />
                       </button>
                     )}
@@ -593,19 +609,12 @@ export default function TrimmingManagement() {
                   <Edit2 size={16} /> 编辑记录
                 </button>
                 {selectedRecord.status === 'drilling' && (
-                  <button onClick={() => openStepModal('drilling')} className="btn-primary text-sm flex items-center gap-1.5">
+                  <button onClick={() => openStepModal('complete')} className="btn-primary text-sm flex items-center gap-1.5">
                     完成后处理 <ArrowRight size={16} />
                   </button>
                 )}
-                {selectedRecord.status !== 'completed' && !canDoStep('demold', selectedRecord.status) && !canDoStep('trimming', selectedRecord.status) && !canDoStep('drilling', selectedRecord.status) && (
-                  <button
-                    onClick={() => {
-                      if (canDoStep('demold', selectedRecord.status)) openStepModal('demold');
-                      else if (canDoStep('trimming', selectedRecord.status)) openStepModal('trimming');
-                      else if (canDoStep('drilling', selectedRecord.status)) openStepModal('drilling');
-                    }}
-                    className="btn-primary text-sm flex items-center gap-1.5"
-                  >
+                {selectedRecord.status !== 'completed' && !canDoStep('demold', selectedRecord.status) && !canDoStep('trimming', selectedRecord.status) && !canDoStep('drilling', selectedRecord.status) && !canDoStep('complete', selectedRecord.status) && (
+                  <button onClick={handleNextStep} className="btn-primary text-sm flex items-center gap-1.5">
                     {getNextStepLabel(selectedRecord.status)} <ArrowRight size={16} />
                   </button>
                 )}
@@ -663,12 +672,26 @@ export default function TrimmingManagement() {
       {/* 钻孔弹窗 */}
       {formType === 'drilling' && selectedRecord && (
         <StepModal
-          title="登记钻孔并完成"
+          title="登记钻孔信息"
           onClose={closeModal}
           stepForm={stepForm}
           setStepForm={setStepForm}
           onSubmit={handleSubmitStep}
-          confirmText="确认钻孔完成"
+          confirmText="确认开始钻孔"
+          showHoleCount
+        />
+      )}
+
+      {/* 完成后处理弹窗 */}
+      {formType === 'complete' && selectedRecord && (
+        <StepModal
+          title="完成后处理"
+          onClose={closeModal}
+          stepForm={stepForm}
+          setStepForm={setStepForm}
+          onSubmit={handleSubmitStep}
+          confirmText="确认完成"
+          isComplete
         />
       )}
     </div>
@@ -684,6 +707,8 @@ function StepModal({
   confirmText,
   showTemp,
   showTrimOptions,
+  showHoleCount,
+  isComplete,
 }: {
   title: string;
   onClose: () => void;
@@ -693,6 +718,8 @@ function StepModal({
   confirmText: string;
   showTemp?: boolean;
   showTrimOptions?: boolean;
+  showHoleCount?: boolean;
+  isComplete?: boolean;
 }) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -707,6 +734,17 @@ function StepModal({
           </button>
         </div>
         <div className="p-5 space-y-4">
+          {isComplete && (
+            <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 size={20} className="text-accent flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-carbon-100">确认完成后处理</p>
+                  <p className="text-xs text-carbon-400 mt-1">后处理完成后，产品将进入无损检测工序。</p>
+                </div>
+              </div>
+            </div>
+          )}
           {showTemp && (
             <div>
               <label className="label">脱模温度 (°C)</label>
@@ -752,16 +790,30 @@ function StepModal({
               </div>
             </>
           )}
-          <div>
-            <label className="label">操作人</label>
-            <input
-              type="text"
-              value={stepForm.operator}
-              onChange={(e) => setStepForm({ ...stepForm, operator: e.target.value })}
-              className="input-field"
-              placeholder="请输入姓名"
-            />
-          </div>
+          {showHoleCount && (
+            <div>
+              <label className="label">钻孔数量 (个)</label>
+              <input
+                type="number"
+                value={stepForm.holeCount}
+                onChange={(e) => setStepForm({ ...stepForm, holeCount: e.target.value })}
+                className="input-field"
+                min="1"
+              />
+            </div>
+          )}
+          {!isComplete && (
+            <div>
+              <label className="label">操作人</label>
+              <input
+                type="text"
+                value={stepForm.operator}
+                onChange={(e) => setStepForm({ ...stepForm, operator: e.target.value })}
+                className="input-field"
+                placeholder="请输入姓名"
+              />
+            </div>
+          )}
           <div>
             <label className="label">备注</label>
             <input
