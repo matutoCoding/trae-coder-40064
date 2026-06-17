@@ -30,6 +30,8 @@ interface StepFormState {
   edgeQuality: 'excellent' | 'good' | 'fair' | 'poor';
   trimResult: string;
   holeCount: string;
+  completeOperator: string;
+  conclusion: string;
 }
 
 const emptyStepForm: StepFormState = {
@@ -39,6 +41,8 @@ const emptyStepForm: StepFormState = {
   edgeQuality: 'good',
   trimResult: '合格',
   holeCount: '6',
+  completeOperator: '',
+  conclusion: '合格',
 };
 
 export default function TrimmingManagement() {
@@ -215,12 +219,18 @@ export default function TrimmingManagement() {
       });
       addActivity('trimming', `开始钻孔加工：${selectedRecord.productName}（共${count}孔）`, stepForm.operator);
     } else if (formType === 'complete') {
+      if (!stepForm.completeOperator) {
+        alert('请填写完成人');
+        return;
+      }
       updateTrimmingRecord(selectedRecord.id, {
         status: 'completed',
         completeTime: now,
+        completeOperator: stepForm.completeOperator,
+        conclusion: stepForm.conclusion,
         remark: (selectedRecord.remark || '') + (stepForm.remark ? ` | ${stepForm.remark}` : ''),
       });
-      addActivity('trimming', `后处理完成：${selectedRecord.productName} 可进入下一工序`, stepForm.operator || '系统');
+      addActivity('trimming', `后处理完成：${selectedRecord.productName}，结论：${stepForm.conclusion}`, stepForm.completeOperator);
     }
     closeModal();
   };
@@ -594,7 +604,31 @@ export default function TrimmingManagement() {
                 <div className="card-header">
                   <h3 className="text-sm font-semibold text-carbon-100">备注信息</h3>
                 </div>
-                <div className="p-5">
+                <div className="p-5 space-y-3">
+                  {selectedRecord.status === 'completed' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 p-3 bg-success/10 border border-success/20 rounded-lg">
+                        <div>
+                          <p className="text-xs text-carbon-500">完成时间</p>
+                          <p className="text-sm font-medium text-carbon-100">{selectedRecord.completeTime || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-carbon-500">完成人</p>
+                          <p className="text-sm font-medium text-carbon-100">{selectedRecord.completeOperator || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-carbon-500">钻孔登记</p>
+                          <p className="text-sm font-medium text-carbon-100">{selectedRecord.drillOperator || '-'} · {selectedRecord.holeCount}孔 · {selectedRecord.drillTime || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-carbon-500">最终结论</p>
+                          <p className={`text-sm font-medium ${selectedRecord.conclusion === '合格' ? 'text-success' : selectedRecord.conclusion === '不合格' ? 'text-danger' : 'text-warning'}`}>
+                            {selectedRecord.conclusion || '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <p className="text-sm text-carbon-300 leading-relaxed">
                     {selectedRecord.remark || '暂无备注信息'}
                   </p>
@@ -735,15 +769,45 @@ function StepModal({
         </div>
         <div className="p-5 space-y-4">
           {isComplete && (
-            <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 size={20} className="text-accent flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-carbon-100">确认完成后处理</p>
-                  <p className="text-xs text-carbon-400 mt-1">后处理完成后，产品将进入无损检测工序。</p>
+            <>
+              <div className="p-4 bg-accent/10 border border-accent/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 size={20} className="text-accent flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-carbon-100">确认完成后处理</p>
+                    <p className="text-xs text-carbon-400 mt-1">后处理完成后，产品将进入无损检测工序。</p>
+                  </div>
                 </div>
               </div>
-            </div>
+              <div>
+                <label className="label">完成人</label>
+                <input
+                  type="text"
+                  value={stepForm.completeOperator}
+                  onChange={(e) => setStepForm({ ...stepForm, completeOperator: e.target.value })}
+                  className="input-field"
+                  placeholder="请输入完成人姓名"
+                />
+              </div>
+              <div>
+                <label className="label">最终结论</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['合格', '有条件合格', '不合格'].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setStepForm({ ...stepForm, conclusion: c })}
+                      className={`py-2 rounded-lg text-sm font-medium transition-all ${
+                        stepForm.conclusion === c
+                          ? c === '合格' ? 'bg-success text-carbon-900' : c === '不合格' ? 'bg-danger text-white' : 'bg-warning text-carbon-900'
+                          : 'bg-carbon-700 text-carbon-300 hover:bg-carbon-600'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
           {showTemp && (
             <div>

@@ -17,6 +17,7 @@ import {
   ScanSearch,
   Gauge,
   Wrench,
+  RotateCcw,
 } from 'lucide-react';
 
 const typeToModule: Record<string, string> = {
@@ -156,6 +157,8 @@ export default function Dashboard() {
         return <ScanSearch size={16} className="text-cyan-400" />;
       case 'mechanical':
         return <Gauge size={16} className="text-pink-400" />;
+      case 'rework':
+        return <RotateCcw size={16} className="text-amber-400" />;
       default:
         return <Activity size={16} className="text-carbon-400" />;
     }
@@ -442,7 +445,11 @@ export default function Dashboard() {
                 </h4>
                 <div className="space-y-1.5 text-sm text-carbon-300 mb-3">
                   {expiredList.slice(0, 2).map((p) => (
-                    <div key={p.id} className="flex items-center gap-2">
+                    <div
+                      key={p.id}
+                      onClick={() => handleTaskClick(`prepreg-${p.id}`)}
+                      className="flex items-center gap-2 cursor-pointer hover:text-accent transition-colors"
+                    >
                       <span className="text-danger font-bold">已过期</span>
                       <span className="font-mono text-accent">{p.materialCode}</span>
                       <span className="text-carbon-500 text-xs">批次 {p.batchNo}</span>
@@ -454,7 +461,11 @@ export default function Dashboard() {
                         (1000 * 60 * 60 * 24)
                     );
                     return (
-                      <div key={p.id} className="flex items-center gap-2">
+                      <div
+                        key={p.id}
+                        onClick={() => handleTaskClick(`prepreg-${p.id}`)}
+                        className="flex items-center gap-2 cursor-pointer hover:text-accent transition-colors"
+                      >
                         <span className="text-warning">剩余 {days} 天</span>
                         <span className="font-mono text-accent">{p.materialCode}</span>
                         <span className="text-carbon-500 text-xs">批次 {p.batchNo}</span>

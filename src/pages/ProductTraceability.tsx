@@ -19,6 +19,8 @@ import {
   Thermometer,
   Star,
   ChevronRight,
+  RotateCcw,
+  Filter,
 } from 'lucide-react';
 
 interface ProductChain {
@@ -32,6 +34,7 @@ interface ProductChain {
   trimming?: any;
   ndt?: any;
   mechanical?: any;
+  reworks?: any[];
 }
 
 const stageMeta: Record<string, { label: string; icon: any; color: string }> = {
@@ -53,12 +56,16 @@ export default function ProductTraceability() {
     trimmingRecords,
     ndtReports,
     mechanicalTests,
+    reworkRecords,
+    prepregs,
     getSelectedId,
     setSelectedId,
   } = useAppStore();
 
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [filterStage, setFilterStage] = useState('');
+  const [filterResult, setFilterResult] = useState('');
 
   const productChains = useMemo<ProductChain[]>(() => {
     const map = new Map<string, ProductChain>();
@@ -168,8 +175,16 @@ export default function ProductTraceability() {
       }
     });
 
+    reworkRecords.forEach((rw) => {
+      const existing = map.get(rw.taskNo);
+      if (existing) {
+        if (!existing.reworks) existing.reworks = [];
+        existing.reworks.push(rw);
+      }
+    });
+
     return Array.from(map.values());
-  }, [cuttingTasks, layupRecords, curingProcesses, trimmingRecords, ndtReports, mechanicalTests]);
+  }, [cuttingTasks, layupRecords, curingProcesses, trimmingRecords, ndtReports, mechanicalTests, reworkRecords]);
 
   useEffect(() => {
     const savedId = getSelectedId('traceability');
@@ -198,11 +213,27 @@ export default function ProductTraceability() {
 
   const selectedProduct = productChains.find((p) => p.taskNo === selectedProductKey) || null;
 
-  const filteredChains = productChains.filter(
-    (p) =>
-      p.productName.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-      p.taskNo.toLowerCase().includes(searchKeyword.toLowerCase())
-  );
+  const getOverallResult = (p: ProductChain | null) => {
+    if (!p) return '';
+    if (p.mechanical) return p.mechanical.result;
+    if (p.ndt) return p.ndt.result;
+    return '';
+  };
+
+  const filteredChains = productChains.filter((p) => {
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.toLowerCase();
+      if (!p.productName.toLowerCase().includes(kw) && !p.taskNo.toLowerCase().includes(kw)) return false;
+    }
+    if (filterStage && p.currentStage !== filterStage) return false;
+    if (filterResult) {
+      const r = getOverallResult(p);
+      if (filterResult === 'pass' && r !== 'pass') return false;
+      if (filterResult === 'fail' && r !== 'fail') return false;
+      if (filterResult === 'pending' && r !== '') return false;
+    }
+    return true;
+  });
 
   const getStageState = (stageKey: string, product: ProductChain | null): 'done' | 'current' | 'pending' => {
     if (!product) return 'pending';
@@ -413,17 +444,42 @@ export default function ProductTraceability() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-4">
           <div className="card overflow-hidden">
-            <div className="card-header flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-carbon-100">产品列表</h3>
-              <div className="relative flex-1 max-w-[220px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-carbon-500" />
-                <input
-                  type="text"
-                  placeholder="产品/任务号搜索"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="input-field pl-9 py-1.5 text-sm"
-                />
+            <div className="card-header space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-carbon-100">产品列表</h3>
+                <div className="relative flex-1 max-w-[180px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-carbon-500" />
+                  <input
+                    type="text"
+                    placeholder="产品/任务号搜索"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    className="input-field pl-9 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter size={14} className="text-carbon-500" />
+                <select
+                  value={filterStage}
+                  onChange={(e) => setFilterStage(e.target.value)}
+                  className="bg-carbon-900 border border-carbon-600 rounded-lg px-2 py-1 text-xs text-carbon-300 focus:outline-none focus:border-accent/50"
+                >
+                  <option value="">全部工序</option>
+                  {stageOrder.map((s) => (
+                    <option key={s} value={s}>{stageMeta[s].label}</option>
+                  ))}
+                </select>
+                <select
+                  value={filterResult}
+                  onChange={(e) => setFilterResult(e.target.value)}
+                  className="bg-carbon-900 border border-carbon-600 rounded-lg px-2 py-1 text-xs text-carbon-300 focus:outline-none focus:border-accent/50"
+                >
+                  <option value="">全部状态</option>
+                  <option value="pass">合格</option>
+                  <option value="fail">不合格</option>
+                  <option value="pending">未检测</option>
+                </select>
               </div>
             </div>
             <div className="divide-y divide-carbon-700/50 max-h-[620px] overflow-y-auto">
@@ -573,9 +629,9 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">状态</span><span className="text-carbon-200">{statusLabel(selectedProduct.cutting.status)}</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">操作人</span><span className="text-carbon-200">{selectedProduct.cutting.operator}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.cutting.operator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">利用率</span><span className="text-carbon-200">{selectedProduct.cutting.utilizationRate}%</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">总面积</span><span className="text-carbon-200">{selectedProduct.cutting.totalArea} m²</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">质检结论</span><span className={selectedProduct.cutting.status === 'completed' ? 'text-success' : 'text-carbon-400'}>{selectedProduct.cutting.status === 'completed' ? '合格' : '-'}</span></div>
                     </div>
                   </div>
                 )}
@@ -587,9 +643,9 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">状态</span><span className="text-carbon-200">{statusLabel(selectedProduct.layup.status)}</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">操作人</span><span className="text-carbon-200">{selectedProduct.layup.operator}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.layup.operator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">模具号</span><span className="text-carbon-200">{selectedProduct.layup.moldNo}</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">进度</span><span className="text-carbon-200">{selectedProduct.layup.currentLayer}/{selectedProduct.layup.totalLayers} 层</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">质检结论</span><span className={selectedProduct.layup.status === 'completed' || selectedProduct.layup.status === 'inspected' ? 'text-success' : 'text-carbon-400'}>{selectedProduct.layup.status === 'completed' || selectedProduct.layup.status === 'inspected' ? '合格' : '-'}</span></div>
                     </div>
                   </div>
                 )}
@@ -601,9 +657,9 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">状态</span><span className="text-carbon-200">{statusLabel(selectedProduct.curing.status)}</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">操作人</span><span className="text-carbon-200">{selectedProduct.curing.operator}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.curing.operator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">设备</span><span className="text-carbon-200">{selectedProduct.curing.autoclaveNo}</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">目标</span><span className="text-carbon-200">{selectedProduct.curing.targetTemp}°C / {selectedProduct.curing.targetPressure}MPa</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">质检结论</span><span className={selectedProduct.curing.status === 'completed' ? 'text-success' : 'text-carbon-400'}>{selectedProduct.curing.status === 'completed' ? '合格' : '-'}</span></div>
                     </div>
                   </div>
                 )}
@@ -615,9 +671,9 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">状态</span><span className="text-carbon-200">{statusLabel(selectedProduct.trimming.status)}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.trimming.completeOperator || selectedProduct.trimming.trimOperator || selectedProduct.trimming.demoldOperator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">脱模温度</span><span className="text-carbon-200">{selectedProduct.trimming.demoldTemp}°C</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">钻孔数</span><span className="text-carbon-200">{selectedProduct.trimming.holeCount} 孔</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">边缘质量</span><span className="text-carbon-200">{selectedProduct.trimming.edgeQuality ? ({excellent:'优',good:'良',fair:'中',poor:'差'} as any)[selectedProduct.trimming.edgeQuality] : '-'}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">质检结论</span><span className={selectedProduct.trimming.conclusion === '合格' ? 'text-success' : selectedProduct.trimming.conclusion === '不合格' ? 'text-danger' : 'text-carbon-400'}>{selectedProduct.trimming.conclusion || (selectedProduct.trimming.status === 'completed' ? '合格' : '-')}</span></div>
                     </div>
                   </div>
                 )}
@@ -629,9 +685,9 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">结论</span><span className={selectedProduct.ndt.result === 'pass' ? 'text-success' : 'text-danger'}>{statusLabel(selectedProduct.ndt.result)}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.ndt.operator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">方法</span><span className="text-carbon-200">{selectedProduct.ndt.testMethod}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">缺陷率</span><span className="text-carbon-200">{selectedProduct.ndt.defectRate}%</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">最大缺陷</span><span className="text-carbon-200">{selectedProduct.ndt.maxDefectSize}mm</span></div>
                     </div>
                   </div>
                 )}
@@ -643,15 +699,75 @@ export default function ProductTraceability() {
                     </div>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between"><span className="text-carbon-500">结论</span><span className={selectedProduct.mechanical.result === 'pass' ? 'text-success' : 'text-danger'}>{statusLabel(selectedProduct.mechanical.result)}</span></div>
+                      <div className="flex justify-between"><span className="text-carbon-500">负责人</span><span className="text-carbon-200">{selectedProduct.mechanical.operator}</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">拉伸强度</span><span className="text-carbon-200">{selectedProduct.mechanical.tensileStrength}MPa</span></div>
                       <div className="flex justify-between"><span className="text-carbon-500">弯曲强度</span><span className="text-carbon-200">{selectedProduct.mechanical.flexuralStrength}MPa</span></div>
-                      <div className="flex justify-between"><span className="text-carbon-500">剪切强度</span><span className="text-carbon-200">{selectedProduct.mechanical.interlaminarShearStrength}MPa</span></div>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="card overflow-hidden">
+              {selectedProduct.cutting && selectedProduct.cutting.prepregId && (() => {
+                const pp = prepregs.find((p: any) => p.id === selectedProduct.cutting.prepregId);
+                if (!pp) return null;
+                return (
+                  <div className="card p-4 col-span-2 md:col-span-3">
+                    <div className="flex items-center gap-2 mb-3 text-blue-400">
+                      <Thermometer size={16} />
+                      <span className="font-semibold text-sm">批次用料</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                      <div><span className="text-carbon-500">物料编码</span><p className="text-carbon-200 mt-0.5 font-mono">{pp.materialCode}</p></div>
+                      <div><span className="text-carbon-500">批次号</span><p className="text-carbon-200 mt-0.5 font-mono">{pp.batchNo}</p></div>
+                      <div><span className="text-carbon-500">纤维类型</span><p className="text-carbon-200 mt-0.5">{pp.fiberType}</p></div>
+                      <div><span className="text-carbon-500">厚度</span><p className="text-carbon-200 mt-0.5">{pp.thickness}mm</p></div>
+                      <div><span className="text-carbon-500">供应商</span><p className="text-carbon-200 mt-0.5">{pp.supplier}</p></div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {selectedProduct.reworks && selectedProduct.reworks.length > 0 && (
+                <div className="card p-4 col-span-2 md:col-span-3 border-warning/30">
+                  <div className="flex items-center gap-2 mb-3 text-amber-400">
+                    <RotateCcw size={16} />
+                    <span className="font-semibold text-sm">返修记录</span>
+                    <span className="text-xs text-carbon-500">共 {selectedProduct.reworks.length} 次</span>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedProduct.reworks.map((rw: any, idx: number) => (
+                      <div key={rw.id} className="p-3 bg-carbon-800/50 rounded-lg border border-carbon-700/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              rw.status === 'completed' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'
+                            }`}>
+                              {rw.status === 'completed' ? '已完成' : '进行中'}
+                            </span>
+                            <span className="text-sm text-carbon-200">第{idx + 1}次返修</span>
+                          </div>
+                          <span className="text-xs text-carbon-500">{rw.createTime}</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div><span className="text-carbon-500">来源</span><p className="text-carbon-200 mt-0.5">{rw.sourceModule === 'ndt' ? '无损检测' : '力学试验'}</p></div>
+                          <div><span className="text-carbon-500">原因</span><p className="text-carbon-200 mt-0.5">{rw.reason}</p></div>
+                          <div><span className="text-carbon-500">返回工序</span><p className="text-carbon-200 mt-0.5">{rw.returnTo === 'trimming' ? '后处理' : '铺层'}</p></div>
+                          <div><span className="text-carbon-500">操作人</span><p className="text-carbon-200 mt-0.5">{rw.operator}</p></div>
+                          {rw.status === 'completed' && (
+                            <>
+                              <div><span className="text-carbon-500">完成时间</span><p className="text-carbon-200 mt-0.5">{rw.completeTime}</p></div>
+                              <div><span className="text-carbon-500">处理结果</span><p className={`mt-0.5 ${rw.result === 'fixed' ? 'text-success' : 'text-danger'}`}>{rw.result === 'fixed' ? '修复' : '报废'}</p></div>
+                            </>
+                          )}
+                        </div>
+                        {rw.remark && <p className="text-xs text-carbon-400 mt-2">备注：{rw.remark}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="card overflow-hidden col-span-2 md:col-span-3">
                 <div className="card-header flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock size={18} className="text-accent" />

@@ -117,6 +117,8 @@ export interface TrimmingRecord {
   edgeQuality: 'excellent' | 'good' | 'fair' | 'poor';
   status: 'pending' | 'demolded' | 'trimming' | 'drilling' | 'completed';
   completeTime?: string;
+  completeOperator?: string;
+  conclusion?: string;
   remark: string;
 }
 
@@ -134,6 +136,8 @@ export interface NdtReport {
   result: 'pass' | 'fail' | 'recheck';
   remark: string;
   scanImage?: string;
+  reworkId?: string;
+  retestCount?: number;
 }
 
 export interface DefectLocation {
@@ -162,6 +166,25 @@ export interface MechanicalTest {
   result: 'pass' | 'fail';
   remark: string;
   stressStrainCurve: DataPoint[];
+  reworkId?: string;
+  retestCount?: number;
+}
+
+export interface ReworkRecord {
+  id: string;
+  taskNo: string;
+  productName: string;
+  sourceModule: 'ndt' | 'mechanical';
+  sourceId: string;
+  reason: string;
+  returnTo: 'trimming' | 'layup';
+  operator: string;
+  createTime: string;
+  completeTime?: string;
+  completeOperator?: string;
+  result?: 'fixed' | 'scrapped';
+  remark: string;
+  status: 'pending' | 'in_progress' | 'completed';
 }
 
 export interface DashboardStats {

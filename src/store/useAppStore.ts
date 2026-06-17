@@ -7,6 +7,7 @@ import type {
   TrimmingRecord,
   NdtReport,
   MechanicalTest,
+  ReworkRecord,
   DashboardStats,
   TaskItem,
   ActivityItem,
@@ -31,6 +32,7 @@ interface StoredState {
   trimmingRecords?: TrimmingRecord[];
   ndtReports?: NdtReport[];
   mechanicalTests?: MechanicalTest[];
+  reworkRecords?: ReworkRecord[];
   selectedIds?: Record<string, string | null>;
   activities?: ActivityItem[];
   activeModule?: string;
@@ -73,6 +75,7 @@ interface AppState {
   trimmingRecords: TrimmingRecord[];
   ndtReports: NdtReport[];
   mechanicalTests: MechanicalTest[];
+  reworkRecords: ReworkRecord[];
   selectedIds: SelectedModuleState;
   activities: ActivityItem[];
 
@@ -102,8 +105,13 @@ interface AppState {
   updateTrimmingRecord: (id: string, updates: Partial<TrimmingRecord>) => void;
 
   addNdtReport: (report: NdtReport) => void;
+  updateNdtReport: (id: string, updates: Partial<NdtReport>) => void;
 
   addMechanicalTest: (test: MechanicalTest) => void;
+  updateMechanicalTest: (id: string, updates: Partial<MechanicalTest>) => void;
+
+  addReworkRecord: (record: ReworkRecord) => void;
+  updateReworkRecord: (id: string, updates: Partial<ReworkRecord>) => void;
 }
 
 const genId = () => Math.random().toString(36).substring(2, 10);
@@ -131,6 +139,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   trimmingRecords: stored.trimmingRecords || mockTrimmingRecords,
   ndtReports: stored.ndtReports || mockNdtReports,
   mechanicalTests: stored.mechanicalTests || mockMechanicalTests,
+  reworkRecords: stored.reworkRecords || [],
   selectedIds: initialSelected,
   activities: initialActivities,
 
@@ -362,11 +371,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       saveToStorage({ ndtReports });
       return { ndtReports };
     }),
+  updateNdtReport: (id, updates) =>
+    set((state) => {
+      const ndtReports = state.ndtReports.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      saveToStorage({ ndtReports });
+      return { ndtReports };
+    }),
 
   addMechanicalTest: (test) =>
     set((state) => {
       const mechanicalTests = [...state.mechanicalTests, test];
       saveToStorage({ mechanicalTests });
       return { mechanicalTests };
+    }),
+  updateMechanicalTest: (id, updates) =>
+    set((state) => {
+      const mechanicalTests = state.mechanicalTests.map((t) => (t.id === id ? { ...t, ...updates } : t));
+      saveToStorage({ mechanicalTests });
+      return { mechanicalTests };
+    }),
+
+  addReworkRecord: (record) =>
+    set((state) => {
+      const reworkRecords = [...state.reworkRecords, record];
+      saveToStorage({ reworkRecords });
+      return { reworkRecords };
+    }),
+  updateReworkRecord: (id, updates) =>
+    set((state) => {
+      const reworkRecords = state.reworkRecords.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      saveToStorage({ reworkRecords });
+      return { reworkRecords };
     }),
 }));

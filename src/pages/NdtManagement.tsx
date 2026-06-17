@@ -17,14 +17,27 @@ import {
   Ruler,
   Layers,
   Target,
+  Wrench,
+  X,
+  Save,
+  RotateCcw,
 } from 'lucide-react';
-import type { NdtReport } from '../types';
+import type { NdtReport, ReworkRecord } from '../types';
+
+const genId = () => Math.random().toString(36).substring(2, 10);
 
 export default function NdtManagement() {
-  const { ndtReports, getSelectedId, setSelectedId } = useAppStore();
+  const { ndtReports, getSelectedId, setSelectedId, addActivity, addReworkRecord, updateNdtReport } = useAppStore();
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [hoveredDefect, setHoveredDefect] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [showReworkModal, setShowReworkModal] = useState(false);
+  const [reworkForm, setReworkForm] = useState({
+    reason: '',
+    returnTo: 'trimming' as 'trimming' | 'layup',
+    operator: '',
+    remark: '',
+  });
 
   useEffect(() => {
     const savedId = getSelectedId('ndt');
@@ -468,12 +481,29 @@ export default function NdtManagement() {
                 <button className="btn-secondary text-sm flex items-center gap-1.5">
                   <Download size={16} /> 导出PDF
                 </button>
-                {selectedReport.result === 'fail' && (
-                  <button className="btn-primary text-sm flex items-center gap-1.5">
-                    提交返修
+                {(selectedReport.result === 'fail' || selectedReport.result === 'recheck') && (
+                  <button onClick={() => setShowReworkModal(true)} className="btn-primary text-sm flex items-center gap-1.5">
+                    <RotateCcw size={16} /> 提交返修
                   </button>
                 )}
               </div>
+
+              {selectedReport.reworkId && (
+                <div className="card overflow-hidden border-warning/30">
+                  <div className="p-5 bg-gradient-to-r from-warning/10 to-transparent">
+                    <div className="flex items-start gap-3">
+                      <RotateCcw size={20} className="text-warning flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-carbon-100">已发起返修</p>
+                        <p className="text-xs text-carbon-400 mt-1">返修单号：{selectedReport.reworkId}</p>
+                        {selectedReport.retestCount ? (
+                          <p className="text-xs text-warning mt-1">已复检 {selectedReport.retestCount} 次</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="card p-12 flex flex-col items-center justify-center">
@@ -483,6 +513,103 @@ export default function NdtManagement() {
           )}
         </div>
       </div>
+
+      {showReworkModal && selectedReport && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-md">
+            <div className="card-header flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-carbon-100">发起返修</h3>
+              <button onClick={() => setShowReworkModal(false)} className="p-1.5 rounded hover:bg-carbon-700 text-carbon-400 hover:text-carbon-200 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle size={20} className="text-danger flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-carbon-100">{selectedReport.productName} - 检测不合格</p>
+                    <p className="text-xs text-carbon-400 mt-1">缺陷率 {selectedReport.defectRate}% · 最大缺陷 {selectedReport.maxDefectSize}mm</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="label">返修原因</label>
+                <select value={reworkForm.reason} onChange={(e) => setReworkForm({ ...reworkForm, reason: e.target.value })} className="input-field">
+                  <option value="">请选择</option>
+                  <option value="分层缺陷">分层缺陷</option>
+                  <option value="孔隙超标">孔隙超标</option>
+                  <option value="夹杂异物">夹杂异物</option>
+                  <option value="尺寸超差">尺寸超差</option>
+                  <option value="表面质量">表面质量不达标</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">返回工序</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setReworkForm({ ...reworkForm, returnTo: 'trimming' })}
+                    className={`py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                      reworkForm.returnTo === 'trimming' ? 'bg-accent text-carbon-900' : 'bg-carbon-700 text-carbon-300 hover:bg-carbon-600'
+                    }`}
+                  >
+                    <Wrench size={16} /> 返回后处理
+                  </button>
+                  <button
+                    onClick={() => setReworkForm({ ...reworkForm, returnTo: 'layup' })}
+                    className={`py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                      reworkForm.returnTo === 'layup' ? 'bg-accent text-carbon-900' : 'bg-carbon-700 text-carbon-300 hover:bg-carbon-600'
+                    }`}
+                  >
+                    <Layers size={16} /> 返回铺层
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="label">操作人</label>
+                <input type="text" value={reworkForm.operator} onChange={(e) => setReworkForm({ ...reworkForm, operator: e.target.value })} className="input-field" placeholder="请输入姓名" />
+              </div>
+              <div>
+                <label className="label">备注</label>
+                <input type="text" value={reworkForm.remark} onChange={(e) => setReworkForm({ ...reworkForm, remark: e.target.value })} className="input-field" placeholder="选填" />
+              </div>
+            </div>
+            <div className="p-5 pt-0 flex justify-end gap-3">
+              <button onClick={() => setShowReworkModal(false)} className="btn-secondary text-sm">取消</button>
+              <button
+                onClick={() => {
+                  if (!reworkForm.reason || !reworkForm.operator) {
+                    alert('请填写返修原因和操作人');
+                    return;
+                  }
+                  const reworkId = genId();
+                  const rework: ReworkRecord = {
+                    id: reworkId,
+                    taskNo: selectedReport.taskNo,
+                    productName: selectedReport.productName,
+                    sourceModule: 'ndt',
+                    sourceId: selectedReport.id,
+                    reason: reworkForm.reason,
+                    returnTo: reworkForm.returnTo,
+                    operator: reworkForm.operator,
+                    createTime: new Date().toLocaleString('zh-CN'),
+                    remark: reworkForm.remark,
+                    status: 'in_progress',
+                  };
+                  addReworkRecord(rework);
+                  updateNdtReport(selectedReport.id, { reworkId, result: 'recheck' });
+                  addActivity('ndt', `发起返修：${selectedReport.productName}，原因：${reworkForm.reason}，返回${reworkForm.returnTo === 'trimming' ? '后处理' : '铺层'}`, reworkForm.operator);
+                  setShowReworkModal(false);
+                  setReworkForm({ reason: '', returnTo: 'trimming', operator: '', remark: '' });
+                }}
+                className="btn-primary text-sm flex items-center gap-1.5"
+              >
+                <RotateCcw size={14} /> 确认发起返修
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
